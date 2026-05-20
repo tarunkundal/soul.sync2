@@ -44,8 +44,10 @@ function filterTodayUnsentEvents(events: any[]) {
     return events.filter(event => {
         const messages = event.people.messages ?? [];
 
+        // Only check messages for THIS SPECIFIC EVENT, not all messages for the person
         const alreadySentThisYear = messages.some(
-            (msg: { sentAt: Date; status: string }) =>
+            (msg: { sentAt: Date; status: string; importantDateId: string }) =>
+                msg.importantDateId === event.id &&
                 new Date(msg.sentAt).getUTCFullYear() === currentYear &&
                 msg.status === "SENT"
         );

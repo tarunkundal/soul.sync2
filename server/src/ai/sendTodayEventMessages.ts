@@ -10,7 +10,7 @@ export async function sendTodayEventMessages() {
     try {
         const events = await getTodayPendingEvents();
 
-        console.log(`[Event Messages] Queueing ${events} events for processing`);
+        console.log(`[Event Messages] Queueing ${events.length} events for processing`);
 
         const jobIds: string[] = [];
 

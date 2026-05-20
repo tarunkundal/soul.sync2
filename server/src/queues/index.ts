@@ -1,20 +1,15 @@
 import Queue from "bull";
 import { type MessageGenerationJobData, type MessageSendingJobData } from "./types.js";
 
-// Redis connection config (passed to Bull)
-// const redisConfig = {
-//   host: process.env.REDIS_URL || "localhost",
-//   port: parseInt(process.env.REDIS_PORT || "6379", 10),
-//   db: parseInt(process.env.REDIS_DB || "0", 10),
-// };
-
-const redisConfig = process.env.REDIS_URL
-  ? process.env.REDIS_URL
-  : {
-    host: "127.0.0.1",
-    port: 6379,
-    db: 0,
-  };
+// Redis connection config for Bull (MUST have maxRetriesPerRequest: null)
+const redisConfig = {
+  host: process.env.REDIS_HOST || "127.0.0.1",
+  port: parseInt(process.env.REDIS_PORT || "6379", 10),
+  db: parseInt(process.env.REDIS_DB || "0", 10),
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  enableOfflineQueue: true,
+};
 
 // Initialize queues
 export const messageGenerationQueue = new Queue<MessageGenerationJobData>(

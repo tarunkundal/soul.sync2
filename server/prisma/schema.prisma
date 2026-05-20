@@ -74,8 +74,9 @@ model Important_Dates {
   dateType  String
   createdAt DateTime @default(now()) @map("created_at")
 
-  personId String @map("person_id") @db.Uuid
-  people   People @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String     @map("person_id") @db.Uuid
+  people   People     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  messages Messages[]
 
   @@unique([personId, dateType])
 }
@@ -111,8 +112,10 @@ model Messages {
   createdAt     DateTime @default(now()) @map("created_at")
   messageLength Int      @map("message_length")
 
-  personId String @map("person_id") @db.Uuid
-  people   People @relation(fields: [personId], references: [id], onDelete: Cascade)
-  userId   String @map("user_id") @db.Uuid
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personId        String           @map("person_id") @db.Uuid
+  people          People           @relation(fields: [personId], references: [id], onDelete: Cascade)
+  userId          String           @map("user_id") @db.Uuid
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  importantDateId String?          @map("important_date_id") @db.Uuid
+  importantDate   Important_Dates? @relation(fields: [importantDateId], references: [id], onDelete: Cascade)
 }
