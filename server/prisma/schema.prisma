@@ -118,4 +118,10 @@ model Messages {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   importantDateId String?          @map("important_date_id") @db.Uuid
   importantDate   Important_Dates? @relation(fields: [importantDateId], references: [id], onDelete: Cascade)
+
+  // A partial unique index on (important_date_id, date_part('year', sent_at))
+  // WHERE important_date_id IS NOT NULL AND status = 'SENT' guarantees one SENT
+  // message per event per year. Prisma cannot express partial/expression
+  // indexes, so it lives in migration 20240103000000 and is intentionally
+  // absent here. Do not "fix" the resulting schema drift by dropping it.
 }

@@ -36,7 +36,7 @@ export interface SendingResult {
     userId: string;
     phoneNumber: string;
     message: string;
-    status: "SENT" | "FAILED";
+    status: "SENT" | "FAILED" | "SKIPPED";
     messageLength: number;
     error?: string;
 }

@@ -1,20 +1,24 @@
 import { prismaClient } from "../lib/db.js";
+import { sentThisYearFilter } from "../lib/messageDedupe.js";
 
 /**
- * Queries the database only for important dates whose month/day
- * matches the provided values.  The previous implementation fetched *all*
- * rows and then filtered in JS, which becomes wasteful as the table grows.
+ * Loads the important dates falling on the given month/day that do NOT already
+ * have a SENT message recorded for the current calendar year.
  *
- * We perform a lightweight raw query to collect leading ids, then load the
- * full records with the necessary relations in a second step.  This keeps the
- * bulk of the filtering inside PostgreSQL and avoids loading unrelated data
- * into memory.
+ * Both filters run inside PostgreSQL:
+ *   - month/day match via EXTRACT on date_value
+ *   - "already sent" via a NOT EXISTS anti-join on Messages.important_date_id
+ *
+ * The anti-join replaces the previous approach of eagerly loading every message
+ * ever sent to a person and matching in JS, which was both unbounded and — since
+ * important_date_id was never populated — always evaluated to "not sent".
  */
-async function getEventsByMonthDay(month: number, day: number) {
-    // first grab matching date ids using SQL EXTRACT
+async function getPendingEventsByMonthDay(month: number, day: number) {
+    // First collect the ids whose month/day match today. EXTRACT keeps this in
+    // the database rather than pulling the whole table into memory.
     const rows: Array<{ id: string }> = await prismaClient.$queryRaw`
         SELECT id
-        FROM "Important_Dates"          -- use quoted model-derived table name
+        FROM "Important_Dates"          -- quoted model-derived table name
         WHERE EXTRACT(MONTH FROM date_value) = ${month}
           AND EXTRACT(DAY FROM date_value) = ${day}
     `;
@@ -24,35 +28,24 @@ async function getEventsByMonthDay(month: number, day: number) {
     }
 
     const ids = rows.map(r => r.id);
+
     return prismaClient.important_Dates.findMany({
-        where: { id: { in: ids } },
+        where: {
+            id: { in: ids },
+            // Exclude anything already delivered this year. `messages` here is
+            // the Important_Dates -> Messages relation, so it is scoped to this
+            // specific event rather than to the person as a whole.
+            messages: {
+                none: sentThisYearFilter(),
+            },
+        },
         include: {
             people: {
                 include: {
                     user: true,
-                    messages: true,
                 },
             },
         },
-    });
-}
-
-function filterTodayUnsentEvents(events: any[]) {
-    const today = new Date();
-    const currentYear = today.getUTCFullYear();
-
-    return events.filter(event => {
-        const messages = event.people.messages ?? [];
-
-        // Only check messages for THIS SPECIFIC EVENT, not all messages for the person
-        const alreadySentThisYear = messages.some(
-            (msg: { sentAt: Date; status: string; importantDateId: string }) =>
-                msg.importantDateId === event.id &&
-                new Date(msg.sentAt).getUTCFullYear() === currentYear &&
-                msg.status === "SENT"
-        );
-
-        return !alreadySentThisYear;
     });
 }
 
@@ -61,16 +54,15 @@ export async function getTodayPendingEvents() {
     const month = today.getUTCMonth() + 1;
     const day = today.getUTCDate();
 
-    // fetch only events whose month/day match today
-    const todaysEvents = await getEventsByMonthDay(month, day);
-    const pendingEvents = filterTodayUnsentEvents(todaysEvents);
+    const pendingEvents = await getPendingEventsByMonthDay(month, day);
 
     console.log(
-        "Events to send today:",
-        pendingEvents,
-        pendingEvents.length,
-        "out of",
-        todaysEvents
+        `[Event Messages] ${pendingEvents.length} event(s) pending for ${month}/${day}`,
+        pendingEvents.map(event => ({
+            eventId: event.id,
+            eventType: event.dateType,
+            personId: event.personId,
+        }))
     );
 
     return pendingEvents;
