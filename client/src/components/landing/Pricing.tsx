@@ -1,4 +1,4 @@
-import { Check, Sparkles, Crown, Zap } from "lucide-react";
+import { Check, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import useScrollReveal from "../../hooks/useScrollReveal";
 

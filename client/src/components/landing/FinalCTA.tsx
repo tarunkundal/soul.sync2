@@ -1,8 +1,8 @@
-import { Button } from "../../components/ui/button";
-import { ArrowRight, Sparkles } from "lucide-react";
-import useScrollReveal from "../../hooks/useScrollReveal";
-import { useNavigate } from "react-router-dom";
 import ROUTES from "@/routes";
+import { ArrowRight, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../../components/ui/button";
+import useScrollReveal from "../../hooks/useScrollReveal";
 
 const FinalCTA = () => {
     const { ref, isVisible } = useScrollReveal();
@@ -49,7 +49,7 @@ const FinalCTA = () => {
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                             <Button variant="hero" size="xl" className="w-full sm:w-auto"
-                                // onClick={() => navigate(ROUTES.AUTH)}
+
                                 onClick={() => window.open(
                                     ROUTES.WHATSAPP_CONNECT_LINK,
                                     "_blank"

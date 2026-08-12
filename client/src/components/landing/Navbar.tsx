@@ -1,8 +1,6 @@
-import { Sparkles } from "lucide-react";
-import { Button } from "../ui/button";
-import { useNavigate } from "react-router-dom";
 import ROUTES from "@/routes";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../ui/button";
 
 const Navbar = () => {
     const navigate = useNavigate();
@@ -10,9 +8,11 @@ const Navbar = () => {
         <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4 border-b border-border/50 bg-black">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-white" />
-                    </div>
+                    <img
+                        src="/heart.png"
+                        alt="SoulSync AI logo"
+                        className="w-10 h-10 object-contain"
+                    />
                     <span className="text-xl font-display font-bold text-foreground">SoulSync AI</span>
                 </div>
 
@@ -23,26 +23,11 @@ const Navbar = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* 🔥 Disabled Sign In with Tooltip */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span>
-                                <Button
-                                    variant="heroOutline"
-                                    size="sm"
-                                    className="hidden sm:flex cursor-not-allowed opacity-60"
-                                    disabled
-                                >
-                                    Sign In
-                                </Button>
-                            </span>
-                        </TooltipTrigger>
 
-                        <TooltipContent>
-                            Web app coming soon 🚀
-                        </TooltipContent>
-                    </Tooltip>
-                    <Button variant="hero" size="sm" onClick={() => navigate(ROUTES.AUTH)}>
+                    <Button variant="hero" size="sm" onClick={() => window.open(
+                        ROUTES.WHATSAPP_CONNECT_LINK,
+                        "_blank"
+                    )}>
                         Get Started
                     </Button>
                 </div>

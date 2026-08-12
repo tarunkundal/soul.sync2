@@ -1,5 +1,3 @@
-import { useAuth } from "@/providers/AuthProvider";
-import { Navigate } from "react-router-dom";
 import Features from "../components/landing/Features";
 import FinalCTA from "../components/landing/FinalCTA";
 import Footer from "../components/landing/Footer";
@@ -13,13 +11,6 @@ import Testimonials from "../components/landing/Testmonials";
 
 
 const Index = () => {
-    const { loading, isAuthenticated } = useAuth();
-
-    if (loading) return <div className="min-h-screen bg-background text-2xl">Loading....</div>;
-
-    if (isAuthenticated) {
-        return <Navigate to="/dashboard" replace />;
-    }
     return (
         <div className="min-h-screen bg-background">
             <Navbar />
