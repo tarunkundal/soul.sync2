@@ -213,8 +213,11 @@ soul.sync-ai/
 **Prerequisites:** Node 18+, a PostgreSQL database, Redis, and a Twilio WhatsApp sandbox.
 
 ```bash
-# 1. install (also runs prisma generate via postinstall)
+# 1. install
 npm install
+
+# 1a. generate the Prisma client (required before the server will compile)
+npx prisma generate --schema=server/prisma/schema.prisma
 
 # 2. start Redis
 brew services start redis        # or: docker run -d -p 6379:6379 redis:latest
@@ -247,12 +250,14 @@ Then set the sandbox's "When a message comes in" to `https://<your-tunnel>/webho
 | `npm run dev:server` | server only, with `tsx watch` |
 | `npm run dev:client` | Vite dev server only |
 | `npm run build` | build client and server |
-| `npm run typecheck:server` | generate Prisma client, then `tsc --noEmit` |
+| `npm run build:server` | generate Prisma client, then compile the server |
 | `npm run codegen:client` | regenerate client GraphQL types |
 | `npm run codegen:server` | regenerate resolver types |
 | `npm run lint` | ESLint |
 
-`prisma generate` runs on `postinstall` and again before `build:server` and `typecheck:server`. Prisma's generated client includes the schema's enums, and the server imports them directly (`OnboardingStep`, `ConversationFlow`, `ConversationStep`), so a build on a clean checkout fails without it.
+**Prisma generate is not optional.** `build:server` runs it first, but nothing runs it on install, so a fresh clone must generate the client before the server will typecheck or start. The generated client is where the schema's enums come from, and the server imports them directly (`OnboardingStep`, `ConversationFlow`, `ConversationStep`), so without it compilation fails on missing exports rather than on anything that points at the real cause.
+
+> There is an unmerged branch (`fix/prisma-client-generation`) that adds a `postinstall` hook plus `prisma:generate` and `typecheck:server` scripts, which removes this manual step. Once it lands, step 1a above becomes unnecessary.
 
 ---
 
@@ -316,7 +321,7 @@ User ──┬── People ──── Important_Dates ──┐
 
 ## Roadmap
 
-- Propagate Twilio send failures. `sendWhatsAppMessage` currently catches and logs its own errors, which means the sending processor can't see a delivery failure and won't retry or dead-letter it. This is the highest-value fix in the codebase.
+- Propagate Twilio send failures. `sendWhatsAppMessage` catches and logs its own errors without rethrowing, so the sending processor cannot see a delivery failure and will neither retry nor dead-letter it — worse, it records the message as `SENT`, which then blocks every future attempt. Fixed on the unmerged `fix/twilio-send-error-propagation` branch.
 - Verify Twilio webhook signatures on `/webhooks/whatsapp`.
 - Authenticate the queue metrics and DLQ endpoints.
 - Move the temporary add-person store from process memory to Redis so multi-turn flows survive a restart and work across instances.
