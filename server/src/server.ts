@@ -68,10 +68,10 @@ async function init() {
         try {
             const jobIds = await sendTodayEventMessages();
 
-            res.json({
+            return res.status(200).json({
+                success: true,
                 message: "Event messages queued successfully",
                 jobsQueued: jobIds.length,
-                jobIds,
             });
         } catch (error) {
             console.error("Error queueing messages:", error);
