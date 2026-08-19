@@ -15,6 +15,31 @@ export default async function whatsappWebhook(
     req: Request,
     res: Response
 ) {
+    const acknowledgeWebhook = () =>
+        res.type("text/xml").send("<Response></Response>");
+    const escapeXml = (value: string) =>
+        value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+    const sendReply = async (to: string, reply: string) => {
+        try {
+            await sendWhatsAppMessage(to, reply);
+            return acknowledgeWebhook();
+        } catch (error) {
+            console.error("WhatsApp reply failed; returning TwiML fallback:", error);
+            return res
+                .type("text/xml")
+                .send(
+                    `<Response><Message>${escapeXml(
+                        "Something went wrong while sending your message. Please try again in a few minutes."
+                    )}</Message></Response>`
+                );
+        }
+    };
+
     try {
         const from = req.body.From?.replace("whatsapp:", "");
         let message = req.body.Body?.trim();
@@ -28,18 +53,16 @@ export default async function whatsappWebhook(
                 message = await transcribeAudio(audioUrl);
                 console.log('Transcribed message:', message);
                 if (!message || message.trim() === '') {
-                    await sendWhatsAppMessage(from, "Sorry, I couldn't understand your voice note. Please try again or send a text message.");
-                    return res.sendStatus(200).end();
+                    return sendReply(from, "Sorry, I couldn't understand your voice note. Please try again or send a text message.");
                 }
             } catch (error) {
                 console.error('Transcription error:', error);
-                await sendWhatsAppMessage(from, "Sorry, I couldn't process your voice note. Please send a text message instead.");
-                return res.sendStatus(200).end();
+                return sendReply(from, "Sorry, I couldn't process your voice note. Please send a text message instead.");
             }
         }
 
         if (!from || !message) {
-            return res.sendStatus(200).end();
+            return acknowledgeWebhook();
         }
 
         let user = await prismaClient.user.findUnique({
@@ -55,15 +78,13 @@ export default async function whatsappWebhook(
                 },
             });
 
-            await sendWhatsAppMessage(from, "Hey 👋 What should I call you?");
-            return res.sendStatus(200).end();
+            return sendReply(from, "Hey 👋 What should I call you?");
         }
 
         // 2️⃣ Onboarding flow
         if (user.onboardingStep !== OnboardingStep.READY) {
             const reply = await handleOnboarding(user.id, message);
-            await sendWhatsAppMessage(from, reply);
-            return res.sendStatus(200).end();
+            return sendReply(from, reply);
         }
 
         // 3️⃣ Command handling
@@ -79,33 +100,35 @@ export default async function whatsappWebhook(
             });
 
             tempStore.set(user.id, {});
-            await sendWhatsAppMessage(from, "Sure 🙂 What’s the person’s name?");
-            return res.sendStatus(200).end();
+            return sendReply(from, "Sure 🙂 What’s the person’s name?");
         }
 
         if (lower === "cancel") {
             await resetConversation(user.id);
             tempStore.delete(user.id);
-            await sendWhatsAppMessage(from, "❌ Action cancelled. You can type *Add person* anytime.");
-            return res.sendStatus(200).end();
+            return sendReply(from, "❌ Action cancelled. You can type *Add person* anytime.");
         }
 
         // 4️⃣ Conversation flow
         if (user.conversationFlow === ConversationFlow.ADD_PERSON) {
             const reply = await handleAddPerson(user, message);
-            await sendWhatsAppMessage(from, reply);
-            return res.sendStatus(200).end();
+            return sendReply(from, reply);
         }
 
         // 5️⃣ Default fallback
-        await sendWhatsAppMessage(
+        return sendReply(
             from,
             "I didn’t understand that 🤔\nType *Add person* to add someone."
         );
-
-        res.sendStatus(200).end();
     } catch (error) {
         console.error("WhatsApp webhook error:", error);
-        res.sendStatus(200).end();
+        if (req.body.From) {
+            res.type("text/xml").send(
+                "<Response><Message>Something went wrong while processing your message. Please try again in a few minutes.</Message></Response>"
+            );
+            return;
+        }
+
+        acknowledgeWebhook();
     }
 }
