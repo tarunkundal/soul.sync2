@@ -93,7 +93,31 @@ Generation runs at concurrency 1 because LLM calls are the expensive, rate-limit
 
 Both queues retry 3 times with exponential backoff starting at 2s. `removeOnFail` is `false` so failures stay inspectable.
 
-There are two ways to trigger a run: the in-process `node-cron` schedule, and an HTTP endpoint guarded by a shared secret (`x-cron-secret`) so an external scheduler like Supabase cron can drive it instead. The HTTP route returns immediately with the queued job ids rather than blocking on delivery.
+There are two ways to trigger a run: the in-process `node-cron` schedule, and an HTTP endpoint guarded by a shared secret (`x-cron-secret`) so an external scheduler like Supabase cron can drive it instead. The HTTP route returns immediately with the queued job ids rather than blocking on delivery. On Render, use a separate Cron Job or an external scheduler for production because a web service can restart or sleep, which stops in-process timers.
+
+### Render cron setup
+
+For a free setup, use [cron-job.org](https://cron-job.org), which can call your Render web service even when it is sleeping. Create a job with schedule `04:02` and timezone `Asia/Kolkata`, method `POST`, and URL:
+
+```text
+https://your-render-service.onrender.com/cron/send-events
+```
+
+Add this request header:
+
+```text
+x-cron-secret: your-CRON_SECRET-value
+```
+
+Set `ENABLE_INTERNAL_CRON=false` on the Render web service so the in-process timer does not also run after a restart. Keep it unset or set it to `true` locally. The scheduler request wakes the Render service, calls the existing endpoint, and receives the queued job ids.
+
+If you prefer Render's native Cron Job, set its schedule to `32 22 * * *` in UTC to run at `04:02 Asia/Kolkata`. Its start command is:
+
+```sh
+curl --fail-with-body --silent --show-error -X POST "$WEB_SERVICE_URL/cron/send-events" -H "x-cron-secret: $CRON_SECRET"
+```
+
+Set `WEB_SERVICE_URL` to the deployed API URL and define the same `CRON_SECRET` value on both services. Do not use `CRON_JOB_SECRET` for the external scheduler; `CRON_SECRET` is the canonical name, although the server also accepts the legacy variable for compatibility.
 
 ---
 
