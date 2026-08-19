@@ -117,7 +117,7 @@ If you prefer Render's native Cron Job, set its schedule to `32 22 * * *` in UTC
 curl --fail-with-body --silent --show-error -X POST "$WEB_SERVICE_URL/cron/send-events" -H "x-cron-secret: $CRON_SECRET"
 ```
 
-Set `WEB_SERVICE_URL` to the deployed API URL and define the same `CRON_SECRET` value on both services. Do not use `CRON_JOB_SECRET` for the external scheduler; `CRON_SECRET` is the canonical name, although the server also accepts the legacy variable for compatibility.
+Set `WEB_SERVICE_URL` to the deployed API URL and define the same `CRON_SECRET` value on both services.
 
 ---
 

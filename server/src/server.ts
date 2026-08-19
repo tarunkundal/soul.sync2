@@ -56,8 +56,7 @@ async function init() {
 
     // Endpoint for the supabase for the cron job if we want to handle it with the trigger based sql fron DB itself 
     app.post("/cron/send-events", async (req: Request, res: Response) => {
-        const configuredCronSecret =
-            process.env.CRON_SECRET ?? process.env.CRON_JOB_SECRET;
+        const configuredCronSecret = process.env.CRON_SECRET;
 
         if (
             !configuredCronSecret ||
