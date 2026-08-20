@@ -128,9 +128,12 @@ export async function handleAddPerson(user: any, message: string) {
                     },
                 });
                 if (existingDate) {
-                    await resetConversation(user.id);
-                    tempStore.delete(user.id);
-                    return `⚠️ ${temp.name} already has a ${eventType.toLowerCase()} event. Please choose a different event type or update the existing one.`;
+                    delete temp.eventType;
+                    delete temp.date;
+                    delete temp.aiTone;
+                    tempStore.set(user.id, temp);
+                    await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE);
+                    return `⚠️ ${temp.name} already has a ${eventType.toLowerCase()} event. Please choose a different event type.`;
                 }
             }
 
