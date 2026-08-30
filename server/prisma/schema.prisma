@@ -18,6 +18,12 @@ model User {
   conversationFlow ConversationFlow @default(NONE)
   conversationStep ConversationStep @default(NONE)
 
+  // Answers collected so far in an in-progress WhatsApp flow. Written in the
+  // same UPDATE as conversationStep so the two cannot drift apart, and cleared
+  // whenever a flow starts or ends. Shape is owned by
+  // webhooks/helpers/whatsappHelpers.ts, which validates on read.
+  conversationData Json? @map("conversation_data")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 

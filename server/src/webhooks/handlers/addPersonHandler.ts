@@ -1,15 +1,18 @@
-import { ConversationStep } from "@prisma/client";
+import { ConversationStep, type User } from "@prisma/client";
 import { extractStructured } from "../../ai/llm/extract.js";
 import { aiToneSchema, dateSchema, eventTypeSchema, personNameSchema, phoneSchema, relationSchema } from "../../ai/llm/schema.js";
 import { prismaClient } from "../../lib/db.js";
-import { normalizeIndianPhone, resetConversation, tempStore, updateConversation } from "../helpers/whatsappHelpers.js";
+import { normalizeIndianPhone, readConversationData, resetConversation, updateConversation } from "../helpers/whatsappHelpers.js";
 
 /* =========================
    ADD PERSON FLOW
 ========================= */
 
-export async function handleAddPerson(user: any, message: string) {
-    const temp = tempStore.get(user.id) || {};
+export async function handleAddPerson(user: User, message: string) {
+    // Collected answers live on the user row, so this survives restarts and is
+    // read from the same snapshot as conversationStep. Every branch below hands
+    // `temp` back to updateConversation, which persists it alongside the step.
+    const temp = readConversationData(user);
 
     switch (user.conversationStep) {
         case ConversationStep.ASK_PERSON_NAME: {
@@ -24,9 +27,8 @@ export async function handleAddPerson(user: any, message: string) {
                 return "❌ Please provide a valid name.";
             }
             temp.name = result.data.name;
-            tempStore.set(user.id, temp);
 
-            await updateConversation(user.id, ConversationStep.ASK_PERSON_PHONE);
+            await updateConversation(user.id, ConversationStep.ASK_PERSON_PHONE, temp);
             return "Please share their * WhatsApp number * 📱\n\nJust the number is fine.\nI’ll automatically add the country code if needed or you can include the *Country Code* (eg: +91)";
         }
         case ConversationStep.ASK_PERSON_PHONE: {
@@ -56,7 +58,6 @@ export async function handleAddPerson(user: any, message: string) {
             }
 
             temp.phone = phoneResult.phone;
-            tempStore.set(user.id, temp);
 
             // check if contact already exists for this user
             const already = await prismaClient.people.findFirst({
@@ -70,12 +71,11 @@ export async function handleAddPerson(user: any, message: string) {
                 if (already.phoneNumber) {
                     temp.phone = already.phoneNumber;
                 };
-                tempStore.set(user.id, temp);
-                await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE);
+                await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE, temp);
                 return `This WhatsApp number is already added as *${already.name}*. I'll add another event for them. What kind of *event* you want to wish for?\n\nFor example:\n• *Birthday*\n• *Anniversary*\n• *Meeting*\n• *Other*`;
             }
 
-            await updateConversation(user.id, ConversationStep.ASK_PERSON_RELATION);
+            await updateConversation(user.id, ConversationStep.ASK_PERSON_RELATION, temp);
 
             return (
                 "Got it ✅\n\n" +
@@ -99,9 +99,8 @@ export async function handleAddPerson(user: any, message: string) {
             }
             const { relationshipType } = result.data;
             temp.relation = relationshipType;
-            tempStore.set(user.id, temp);
 
-            await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE);
+            await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE, temp);
             return "Nice 👍 What kind of * event * you want to wish for ?\n\nFor example: \n• * Birthday *\n• * Anniversary *\n• * Meeting *\n• * Other *";
         }
         case ConversationStep.ASK_EVENT_TYPE: {
@@ -131,16 +130,14 @@ export async function handleAddPerson(user: any, message: string) {
                     delete temp.eventType;
                     delete temp.date;
                     delete temp.aiTone;
-                    tempStore.set(user.id, temp);
-                    await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE);
+                    await updateConversation(user.id, ConversationStep.ASK_EVENT_TYPE, temp);
                     return `⚠️ ${temp.name} already has a ${eventType.toLowerCase()} event. Please choose a different event type.`;
                 }
             }
 
             temp.eventType = result.data.eventType;
-            tempStore.set(user.id, temp);
 
-            await updateConversation(user.id, ConversationStep.ASK_EVENT_DATE);
+            await updateConversation(user.id, ConversationStep.ASK_EVENT_DATE, temp);
             return "Got it 🎉 What’s the event date? (YYYY-MM-DD)";
         }
 
@@ -157,7 +154,7 @@ export async function handleAddPerson(user: any, message: string) {
             }
             const { dateValue } = result.data;
             temp.date = dateValue;
-            await updateConversation(user.id, ConversationStep.ASK_AI_TONE);
+            await updateConversation(user.id, ConversationStep.ASK_AI_TONE, temp);
             return "How would you like the message to sound? 😊\n\nChoose a *tone*:\n• *Warm*\n• *Funny*\n• *Formal*\n• *Emotional*\n• *Romantic*"
         }
         case ConversationStep.ASK_AI_TONE: {
@@ -174,9 +171,8 @@ export async function handleAddPerson(user: any, message: string) {
             }
 
             temp.aiTone = result.data.aiTone;
-            tempStore.set(user.id, temp);
 
-            await updateConversation(user.id, ConversationStep.CONFIRM_PERSON);
+            await updateConversation(user.id, ConversationStep.CONFIRM_PERSON, temp);
 
             return `Please confirm 👇
                     Name: ${temp.name}
@@ -192,7 +188,6 @@ export async function handleAddPerson(user: any, message: string) {
         case ConversationStep.CONFIRM_PERSON: {
             if (message.toLowerCase() !== "yes") {
                 await resetConversation(user.id);
-                tempStore.delete(user.id);
                 return "❌ Not saved. Type *Add person* to try again.";
             }
 
@@ -209,7 +204,6 @@ export async function handleAddPerson(user: any, message: string) {
                 } catch (err: any) {
                     if (err?.code === "P2002") {
                         await resetConversation(user.id);
-                        tempStore.delete(user.id);
                         return `⚠️ Failed to add event. ${temp.name} might already have this event type.`;
                     }
                     throw err;
@@ -218,7 +212,6 @@ export async function handleAddPerson(user: any, message: string) {
                 // validate all required fields for new person
                 if (!temp.name || !temp.phone || !temp.relation || !temp.eventType || !temp.date || !temp.aiTone) {
                     await resetConversation(user.id);
-                    tempStore.delete(user.id);
                     return "❌ Some information is missing. Please start over by typing *Add person*.";
                 }
 
@@ -228,7 +221,6 @@ export async function handleAddPerson(user: any, message: string) {
                 });
                 if (existing) {
                     await resetConversation(user.id);
-                    tempStore.delete(user.id);
                     return (
                         "⚠️ You already added someone with that WhatsApp number. " +
                         "Type *Add person* if you want to add somebody else."
@@ -258,7 +250,6 @@ export async function handleAddPerson(user: any, message: string) {
                         err?.meta?.target?.includes("phone_number")
                     ) {
                         await resetConversation(user.id);
-                        tempStore.delete(user.id);
                         return (
                             "⚠️ That contact already exists for your account. " +
                             "Type *Add person* if you want to add somebody else."
@@ -269,7 +260,6 @@ export async function handleAddPerson(user: any, message: string) {
             }
 
             await resetConversation(user.id);
-            tempStore.delete(user.id);
 
             return "✅ Person added successfully! 🎉";
         }
