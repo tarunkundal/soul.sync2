@@ -8,7 +8,7 @@ import { prismaClient } from "../lib/db.js";
 import { sendWhatsAppMessage } from "../lib/twilio.js";
 import { handleAddPerson } from "./handlers/addPersonHandler.js";
 import { handleOnboarding } from "./handlers/onboardingHandler.js";
-import { resetConversation, tempStore } from "./helpers/whatsappHelpers.js";
+import { resetConversation, startConversation } from "./helpers/whatsappHelpers.js";
 import { transcribeAudio } from "./utils/transcription.js";
 
 export default async function whatsappWebhook(
@@ -91,21 +91,17 @@ export default async function whatsappWebhook(
         const lower = message.toLowerCase();
 
         if (lower === "add person") {
-            await prismaClient.user.update({
-                where: { id: user.id },
-                data: {
-                    conversationFlow: ConversationFlow.ADD_PERSON,
-                    conversationStep: ConversationStep.ASK_PERSON_NAME,
-                },
-            });
+            await startConversation(
+                user.id,
+                ConversationFlow.ADD_PERSON,
+                ConversationStep.ASK_PERSON_NAME
+            );
 
-            tempStore.set(user.id, {});
             return sendReply(from, "Sure 🙂 What’s the person’s name?");
         }
 
         if (lower === "cancel") {
             await resetConversation(user.id);
-            tempStore.delete(user.id);
             return sendReply(from, "❌ Action cancelled. You can type *Add person* anytime.");
         }
 
